@@ -1,0 +1,12 @@
+[Unit]
+Description=Gunicorn Daemon for Fortune API
+After=network.target
+
+[Service]
+User=fortune
+Group=www-data
+WorkingDirectory=/home/fortune
+ExecStart=/home/fortune/fortune.venv/bin/gunicorn -c gunicorn_conf.py fortune:app
+
+[Install]
+WantedBy=multi-user.target

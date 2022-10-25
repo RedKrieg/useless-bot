@@ -1,0 +1,8 @@
+server {
+    listen 80;
+    server_name fortune.redkrieg.com;
+
+    location / {
+        proxy_pass http://unix:/home/fortune/gunicorn.sock;
+    }
+}
