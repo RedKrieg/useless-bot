@@ -1,7 +1,7 @@
 // geodesic sphere from https://www.thingiverse.com/thing:1484333
 use <geodesic_sphere.scad>;
 $fn=64;
-clearance = 0.8; // part clearance to add for 3d printing
+clearance = 0.6; // part clearance to add for 3d printing
 delta = 0.001; // used for cutouts to prevent weird stuff with parallel planes
 
 // this is for a bearing cutout, no need to render inner diameter
@@ -24,7 +24,11 @@ module nut(r, h, clearance=0.0) {
 }
 
 module metric_bolt(size, length, clearance=0.0) {
-    if (size=="M2") {
+    if (size=="M1") {
+        bolt(1, length, 3.8, 2, clearance);
+    } else if (size=="M1.6") {
+        bolt(1.6, length, 3.8, 2, clearance);
+    } else if (size=="M2") {
         bolt(2, length, 3.8, 2, clearance);
     } else if (size=="M2.5") {
         bolt(2.5, length, 4.5, 2.45, clearance);
@@ -50,7 +54,6 @@ module thermal_printer(clearance) {
         -bracket_size[2]
     ];
     feeder_face_size = [70.9+c, 43.2+c, 8.4+c];
-    //feeder_face_size = [70.9+c, 43.2+c, 30+c];
     feeder_face_offset = [
         (lower_base_size[0]-feeder_face_size[0])/2,
         lower_base_size[1]-feeder_face_size[1],
@@ -70,9 +73,8 @@ module thermal_printer(clearance) {
     }
 }
 
-module mainboard(clearance, cut_depth=0.0) {
+module mainboard(breadboard_size, clearance=0.0, cut_depth=0.0) {
     c = clearance;
-    breadboard_size = [56+c, 84+c, 17+c];
     wiring_size = [50+c, 31+c, 44+c];
     wiring_offset = [3.2, 35.4, 0];
     power_plug_center_x = 61.5;
@@ -97,12 +99,12 @@ module battery_pack(clearance, cut_depth=0.0) {
     pack_size = [60.0+c, 87.4+c, 24.4+cut_depth+c];
     power_channel_size = [
         pack_size[0] - 20.0 * 2,
-        50.0+c,
+        10.0+c,
         48.0+c
     ];
     power_channel_offset = [
         (pack_size[0] - power_channel_size[0]) / 2,
-        -10.0,
+        -10.0-c,
         8.0
     ];
     center_offset = [-pack_size[0]/2, -pack_size[1]/2, -(pack_size[2]-cut_depth)/2];
@@ -130,23 +132,24 @@ module eye(r, flat_r, back_cut_angle, wall_thickness, bolt_diameter, clearance) 
             flat_sphere(r, flat_height);
             flat_sphere(r-wall_thickness, flat_height-wall_thickness);
             translate([-r*2-back_cut_depth, -r, -r]) cube(r*2);
-            translate([0, 0, r]) metric_bolt("M4", 10);
+            translate([0, 0, r]) metric_bolt("M4", 10, clearance);
+            rotate([180, 0, 0]) translate([0, 0, r]) metric_bolt("M4", 10, clearance);
         }
         difference() {
             hull() {
                 translate(bracket_offset) cube(bracket_size);
                 translate([bracket_offset[0], 0, bracket_offset[2]]) cylinder(h=bracket_size[2], r=bracket_size[1]/2);
             }
-            translate([0,0,bracket_size[2]/2]) mirror([0, 0, 1]) bearing(total_height=4+clearance, clearance=clearance/2);
-           translate([-r,0,bracket_size[2]/2]) mirror([0, 0, 1]) bearing(clearance=clearance/2);
+            translate([0,0,-bracket_size[2]/2]) bearing(total_height=4+clearance, clearance=clearance/2);
+            translate([-r,0,bracket_size[2]/2]) mirror([0, 0, 1]) bearing(clearance=clearance/2);
         }
     }
 }
 
-module slug(h, r, p1, p2) {
+module slug(h, r1, r2, p1, p2) {
     hull() {
-        translate(p1) cylinder(h=h, r=r, center=true);
-        translate(p2) cylinder(h=h, r=r, center=true);
+        translate(p1) cylinder(h=h, r=r1, center=true);
+        translate(p2) cylinder(h=h, r=r2, center=true);
     }
 }
 
@@ -160,13 +163,15 @@ module lr_linkage(ipd, wall_thickness=1.6, clearance=0.0) {
     points = [
         [0, 0, 0],
         [ipd/4, ipd/2, 0],
+        [ipd/2, ipd/2, 0],
         [3*ipd/4, ipd/2, 0],
         [ipd, 0, 0]
     ];
     difference() {
         union() {
             for (i=[0:len(points)-2]) {
-                slug(h=slug_h, r=slug_r, p1=points[i], p2=points[i+1]);
+                // divide radius for odd indices by two
+                slug(h=slug_h, r1=slug_r/(i%2+1), r2=slug_r/((i+1)%2+1), p1=points[i], p2=points[i+1]);
             }
         }
         for (x=[0, ipd]) {
@@ -175,38 +180,101 @@ module lr_linkage(ipd, wall_thickness=1.6, clearance=0.0) {
                 translate([0, 0, -ipd/2]) metric_bolt("M4", ipd, clearance=clearance/2);
             }
         }
-        translate([ipd/2, ipd/2, slug_h/3]) nut(r=linkage_nut_r, h=linkage_nut_h,clearance=clearance/2);
-        translate([ipd/2, ipd/2, -ipd/2]) metric_bolt("M2", ipd, clearance=clearance/2);
+        translate([ipd/2, ipd/2, slug_h/3]) nut(r=linkage_nut_r, h=linkage_nut_h-clearance,clearance=clearance/2);
+        translate([ipd/2, ipd/2, -ipd/2]) metric_bolt("M1.6", ipd, clearance=clearance/2);
     }
 }
 
-module rounded_plate(x, y, r) {
-    translate([-x/2, -y/2, 0]) hull() for (ix=[0,x], iy=[0,y]) geodesic_sphere(r);
+module rounded_plate(size, r) {
+    hull() for (ix=[-size[0]/2+r,size[0]/2-r], iy=[-size[1]/2+r,size[1]/2-r]) translate([ix,iy,0]) cylinder(h=size[2], r=r, center=true);
 }
 
 module pill(r, p1, p2) {
-    hull() for (p=[p1,p2]) translate(p) geodesic_sphere(r, $fn=$fn/4);
+    hull() for (p=[p1,p2]) translate(p) geodesic_sphere(r);
 }
 
 module ud_linkage(eye_radius, ipd, wall_thickness=1.6, clearance=0.0) {
+    nut_h=3;
+    nut_r=4;
+    slug_h = nut_h/2+wall_thickness;
+    slug_r = nut_r+(wall_thickness+clearance)/2;
+    linkage_nut_r = 2.3; //measured
+    linkage_nut_h = 4; //two nuts
     z_offset = 4+clearance;
     segment_length = ipd/6;
+    servo_frame_size = [32+wall_thickness,12+clearance+wall_thickness*2,6];
+    servo_frame_offset = [0, 0, 1.45];
+    servo_body_size = [23+clearance, 12+clearance, 40+clearance];
     points = [
         [0, 0, z_offset],
         [-2*eye_radius/3, 0, z_offset],
-        [-eye_radius, 0, z_offset+segment_length],
-        [-eye_radius, -segment_length, z_offset+segment_length],
-        [-eye_radius, -2*segment_length, z_offset+segment_length],
-        [-eye_radius, -3*segment_length, 0], //center
-        [-eye_radius, -4*segment_length, z_offset+segment_length],
-        [-eye_radius, -5*segment_length, z_offset+segment_length],
-        [-eye_radius, -6*segment_length, z_offset+segment_length],
+        [-0.75*eye_radius, 0, z_offset+segment_length],
+        [-1.5*eye_radius, -segment_length, z_offset+segment_length],
+        [-1.5*eye_radius, -2*segment_length, 0],
+        [-1.5*eye_radius+3.5, -3*segment_length, 0], //center
+        [-1.5*eye_radius, -4*segment_length, 0],
+        [-1.5*eye_radius, -5*segment_length, z_offset+segment_length],
+        [-0.75*eye_radius, -6*segment_length, z_offset+segment_length],
         [-2*eye_radius/3, -6*segment_length, z_offset],
         [0, -6*segment_length, z_offset]
     ];
-    for (i=[0:len(points)-2]) pill(2, points[i], points[i+1]);
-    translate([0, -ipd/2-clearance, 0]) rotate([90, 0, 0]) bearing(clearance=clearance/2);
-    translate([-eye_radius, -ipd/2, -3-wall_thickness*2]) rotate([0, 180, 0]) servo();
+    rotations = [
+        [0, 0, 0],
+        [0, 0, 0],
+        [0, 0, 45],
+        [0, 0, 90],
+        [0, 0, 90],
+        [0, 0, 90],
+        [0, 0, 90],
+        [0, 0, 90],
+        [0, 0, -45],
+        [0, 0, 0],
+        [0, 0, 0],
+    ];
+    slim_size = [wall_thickness, slug_r ,slug_h];
+    hole_offset = [(servo_body_size[0]-clearance)/2+2.65, 0, 0];
+    linkage_nut_offset = points[7] + [-slug_r-nut_r, -4, -slug_r/2];
+    difference() {
+        union() {
+            hull() {
+                translate(points[0]) cylinder(h=slug_h, r=slug_r, center=true);
+                translate(points[1]) cube(slim_size, center=true);
+            }
+            for (i=[1:8]) hull() {
+                translate(points[i]) rotate(rotations[i]) cube(slim_size, center=true);
+                translate(points[i+1]) rotate(rotations[i+1]) cube(slim_size, center=true);
+            }
+            hull() {
+                translate(points[10]) cylinder(h=slug_h, r=slug_r, center=true);
+                translate(points[9]) cube(slim_size, center=true);
+            }
+            //servo frame body
+            translate(points[5]+servo_frame_offset) rounded_plate(servo_frame_size, wall_thickness*2+clearance);
+            //bearing holder
+            translate([0, -ipd/2-clearance, 0]) rotate([90, 0, 0]) cylinder(h=4.0, r=5.25+wall_thickness+clearance/2);
+            //linkage holder
+            hull() {
+                translate(linkage_nut_offset) rotate([-90,0,0]) cylinder(h=wall_thickness+linkage_nut_h/4, r=linkage_nut_r+wall_thickness);
+                translate(points[7]) rotate(rotations[7]) cube(slim_size, center=true);
+            }
+        }
+        translate(points[5]) cube(servo_body_size, center=true);
+        translate(points[5]+hole_offset) cylinder(h=10, r=1.05,center=true);
+        translate(points[5]-hole_offset) cylinder(h=10, r=1.05,center=true);
+        //nuts
+        translate(points[0]-[0,0,nut_h/2]) nut(r=nut_r, h=nut_h, clearance=clearance);
+        translate(points[10]-[0,0,nut_h/2]) nut(r=nut_r, h=nut_h, clearance=clearance);
+        //bolts
+        translate(points[0]) metric_bolt("M4", 10, clearance=clearance/2);
+        translate(points[10]) metric_bolt("M4", 10, clearance=clearance/2);
+        // bearing
+    translate([0, -ipd/2-clearance-4, 0]) rotate([-90, 0, 0]) bearing(clearance=clearance/2);
+        //linkage nut
+        translate(linkage_nut_offset) rotate([90, 0, 0]) nut(r=linkage_nut_r, h=linkage_nut_h-clearance, clearance=clearance);
+        translate(linkage_nut_offset+[0,nut_h,0]) rotate([90, 0, 0]) metric_bolt("M1.6", 10, clearance=clearance);
+    }
+    // lr_servo
+    //color("#ff0000") translate([-eye_radius, -ipd/2, -3-wall_thickness*2]) rotate([0, 180, 0]) servo();
 }
 
 module eyes(ipd, eye_radius=36/2, clearance) {
@@ -247,31 +315,27 @@ module shell(radius, wall_thickness) {
     }
 }
 
-module upper_shell(radius, wall_thickness, ipd) {
-}
-
-//cube(wiring_size);
 pack_height = 24.4;
 pack_offset = -30;
-//metric_bolt("M4", 20, clearance);
-//bearing(clearance=clearance);
+breadboard_size = [56+clearance, 84+clearance, 17+clearance];
 printer_offset = [52, 0, -2.5];
 mainboard_offset = [-22, 0, pack_offset+pack_height/2];
 electronics_offset = [0, 0, pack_offset];
 electronics_rotation = [0, 15, 0];
-shell_radius = 71;
+shell_radius = 75;
 wall_thickness = 2.6;
-ipd = 2*shell_radius/3;
-eye_angle = 50;
-eye_radius = 36/2;
-eye_distance = shell_radius-wall_thickness-clearance-5.5; //2 for half bearing radius
 
-part = "top";
+eye_angle = 55;
+eye_radius = 36/2;
+eye_distance = shell_radius-wall_thickness*2-clearance-5.5; //2 for half bearing radius
+ipd = eye_radius*2+clearance*3+4*4;//4*4 is two nuts, bearing, and bolt head;
+
+part = "eyes";
 
 module assembly(clearance, cut_depth=0.0) {
     color("#4080ff") translate(printer_offset) thermal_printer(clearance);
     rotate(electronics_rotation) {
-        color("#ff0000") translate(mainboard_offset) mainboard(clearance, cut_depth);
+        color("#ff0000") translate(mainboard_offset) mainboard(breadboard_size, clearance, cut_depth);
         color("#ffff00") translate(electronics_offset) battery_pack(clearance, cut_depth);
     }
 }
@@ -281,10 +345,13 @@ if (part == "top") {
     difference() {
         union() {
             shell(shell_radius, wall_thickness);
+            //eye bulbs
             for (y=[-ipd/2, ipd/2]) {
+                eye_coords = [eye_distance*cos(eye_angle), y, eye_distance*sin(eye_angle)];
                 difference() {
-                    translate([eye_distance*cos(eye_angle), y, eye_distance*sin(eye_angle)]) geodesic_sphere(socket_radius+wall_thickness);
-                    translate([eye_distance*cos(eye_angle)+socket_radius+wall_thickness, y, eye_distance*sin(eye_angle)]) cube((socket_radius+wall_thickness)*2, center=true);
+                    pill(socket_radius+wall_thickness, eye_coords, [0, eye_coords[1], eye_coords[2]-(socket_radius+wall_thickness)/2]);
+                    //translate(eye_coords) geodesic_sphere(socket_radius+wall_thickness);
+                    translate(eye_coords+[socket_radius+wall_thickness+4.0,0,0]) cube((socket_radius+wall_thickness)*2, center=true);
                 }
             }
         }
@@ -296,10 +363,15 @@ if (part == "top") {
             geodesic_sphere(shell_radius-wall_thickness);
             translate([printer_offset[0]-wall_thickness, -shell_radius, -shell_radius]) cube(shell_radius*2);
         }
+        // eye sockets
         for (y=[-ipd/2, ipd/2]) {
-            translate([eye_distance*cos(eye_angle), y, eye_distance*sin(eye_angle)]) geodesic_sphere(socket_radius);
+            eye_coords = [eye_distance*cos(eye_angle), y, eye_distance*sin(eye_angle)];
+            pill(socket_radius, eye_coords, [0, eye_coords[1], eye_coords[2]-socket_radius/2]);
+            //translate([eye_distance*cos(eye_angle), y, eye_distance*sin(eye_angle)]) geodesic_sphere(socket_radius);
         }
     }
+    // ud_servo
+    color("#ff0000") translate([-10, ipd/2, 30]) rotate([90, 0, 0]) servo();
 } else if (part == "bottom") {
     difference() {
         shell(shell_radius, wall_thickness);
@@ -317,5 +389,4 @@ if (part == "top") {
     eyes(ipd, eye_radius=eye_radius, clearance=clearance);
 }
 //color("#4080ff") translate(printer_offset) thermal_printer(clearance);
-//translate([shell_radius-30, ipd/2, 2*shell_radius/3]) mirror([0,0,1]) eyes(ipd, clearance=clearance);
-translate([eye_distance*cos(eye_angle), ipd/2, eye_distance*sin(eye_angle)]) mirror([0,0,1]) eyes(ipd, clearance=clearance);
+//translate([eye_distance*cos(eye_angle), -ipd/2, eye_distance*sin(eye_angle)]) rotate([180, 0, 0]) eyes(ipd, clearance=clearance);
