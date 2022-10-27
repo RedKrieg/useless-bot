@@ -140,8 +140,9 @@ module eye(r, flat_r, back_cut_angle, wall_thickness, bolt_diameter, clearance) 
                 translate(bracket_offset) cube(bracket_size);
                 translate([bracket_offset[0], 0, bracket_offset[2]]) cylinder(h=bracket_size[2], r=bracket_size[1]/2);
             }
-            translate([0,0,-bracket_size[2]/2]) bearing(total_height=4+clearance, clearance=clearance/2);
-            translate([-r,0,bracket_size[2]/2]) mirror([0, 0, 1]) bearing(clearance=clearance/2);
+            //bearings
+            translate([0, 0, bracket_size[2]/2]) mirror([0, 0, 1]) bearing(total_height=4+clearance, clearance=clearance/2);
+            translate([-r, 0, -bracket_size[2]/2]) bearing(clearance=clearance/2);
         }
     }
 }
@@ -153,7 +154,7 @@ module slug(h, r1, r2, p1, p2) {
     }
 }
 
-module lr_linkage(ipd, wall_thickness=1.6, clearance=0.0) {
+module lr_linkage(ipd, eye_radius, wall_thickness=1.6, clearance=0.0) {
     nut_h=3;
     nut_r=4;
     slug_h = nut_h/2+wall_thickness;
@@ -162,16 +163,16 @@ module lr_linkage(ipd, wall_thickness=1.6, clearance=0.0) {
     linkage_nut_h = 4; //two nuts
     points = [
         [0, 0, 0],
-        [ipd/4, ipd/2, 0],
-        [ipd/2, ipd/2, 0],
-        [3*ipd/4, ipd/2, 0],
+        [ipd/4, 1.25*eye_radius, 0],
+        [ipd/2, 1.5*eye_radius+3.5, 0], //3.5 here is the same offset used in the ud_linkage for servo motor positioning.  we're putting the center of the servo at eye_radius from the linkage arm because it seems like a good idea to avoid stretching the push rod.
+        [3*ipd/4, 1.25*eye_radius, 0],
         [ipd, 0, 0]
     ];
+    slug_radii = [slug_r, slug_r/2, linkage_nut_r+wall_thickness/2+clearance/2, slug_r/2, slug_r];
     difference() {
         union() {
             for (i=[0:len(points)-2]) {
-                // divide radius for odd indices by two
-                slug(h=slug_h, r1=slug_r/(i%2+1), r2=slug_r/((i+1)%2+1), p1=points[i], p2=points[i+1]);
+                slug(h=slug_h, r1=slug_radii[i], r2=slug_radii[i+1], p1=points[i], p2=points[i+1]);
             }
         }
         for (x=[0, ipd]) {
@@ -180,8 +181,8 @@ module lr_linkage(ipd, wall_thickness=1.6, clearance=0.0) {
                 translate([0, 0, -ipd/2]) metric_bolt("M4", ipd, clearance=clearance/2);
             }
         }
-        translate([ipd/2, ipd/2, slug_h/3]) nut(r=linkage_nut_r, h=linkage_nut_h-clearance,clearance=clearance/2);
-        translate([ipd/2, ipd/2, -ipd/2]) metric_bolt("M1.6", ipd, clearance=clearance/2);
+        translate(points[2]+[0, 0, slug_h/3]) nut(r=linkage_nut_r, h=linkage_nut_h-clearance,clearance=clearance/2);
+        translate(points[2]+[0, 0, -ipd/2]) metric_bolt("M1.6", ipd, clearance=clearance/2);
     }
 }
 
@@ -287,7 +288,7 @@ module eyes(ipd, eye_radius=36/2, clearance) {
     for (y=[0, ipd]) {
         translate([0, -y, 0]) eye(eye_radius, googly_radius, back_cut_angle, wall_thickness, bolt_diameter, c);
     }
-    translate([-eye_radius, -ipd, -bearing_height]) rotate([0, 0, 90]) lr_linkage(ipd, clearance=c);
+    translate([-eye_radius, -ipd, -bearing_height]) rotate([0, 0, 90]) lr_linkage(ipd, eye_radius, clearance=c);
     ud_linkage(eye_radius, ipd, clearance=clearance);
 }
 
@@ -328,9 +329,9 @@ wall_thickness = 2.6;
 eye_angle = 55;
 eye_radius = 36/2;
 eye_distance = shell_radius-wall_thickness*2-clearance-5.5; //2 for half bearing radius
-ipd = eye_radius*2+clearance*3+4*4;//4*4 is two nuts, bearing, and bolt head;
+ipd = eye_radius*2+clearance*2+18+3;//18 is for the M4x14 bolt length (include head), 3 is for the final nut to make assembly possible
 
-part = "eyes";
+part = "top";
 
 module assembly(clearance, cut_depth=0.0) {
     color("#4080ff") translate(printer_offset) thermal_printer(clearance);
@@ -372,6 +373,8 @@ if (part == "top") {
     }
     // ud_servo
     color("#ff0000") translate([-10, ipd/2, 30]) rotate([90, 0, 0]) servo();
+    //eyes
+    color("#ff0000") translate([eye_distance*cos(eye_angle), -ipd/2, eye_distance*sin(eye_angle)]) rotate([180, 0, 0]) eyes(ipd, clearance=clearance);
 } else if (part == "bottom") {
     difference() {
         shell(shell_radius, wall_thickness);
@@ -388,5 +391,3 @@ if (part == "top") {
 } else if (part == "eyes") {
     eyes(ipd, eye_radius=eye_radius, clearance=clearance);
 }
-//color("#4080ff") translate(printer_offset) thermal_printer(clearance);
-//translate([eye_distance*cos(eye_angle), -ipd/2, eye_distance*sin(eye_angle)]) rotate([180, 0, 0]) eyes(ipd, clearance=clearance);
