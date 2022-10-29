@@ -266,7 +266,9 @@ module ud_linkage(eye_radius, ipd, wall_thickness=1.6, clearance=0.0) {
                 translate(points[7]) rotate(rotations[7]) cube(slim_size, center=true);
             }
         }
+        // servo
         translate(points[5]) cube(servo_body_size, center=true);
+        // servo mounting holes
         translate(points[5]+hole_offset) cylinder(h=10, r=1.05,center=true);
         translate(points[5]-hole_offset) cylinder(h=10, r=1.05,center=true);
         //nuts
@@ -276,14 +278,15 @@ module ud_linkage(eye_radius, ipd, wall_thickness=1.6, clearance=0.0) {
         translate(points[0]) metric_bolt("M4", 10, clearance=clearance/2);
         translate(points[10]) metric_bolt("M4", 10, clearance=clearance/2);
         // bearing
-    translate([0, -ipd/2-clearance-4, 0]) rotate([-90, 0, 0]) bearing(clearance=clearance/2);
+        translate([0, -ipd/2-clearance-4, 0]) rotate([-90, 0, 0]) bearing(clearance=clearance/2);
         //linkage nut
         translate(linkage_nut_offset) rotate([90, 0, 0]) nut(r=linkage_nut_r, h=linkage_nut_h-clearance, clearance=clearance);
+        //linkage bolt
         translate(linkage_nut_offset+[0,nut_h,0]) rotate([90, 0, 0]) metric_bolt("M1.6", 10, clearance=clearance);
     }
     if ($preview) {
         // lr_servo
-        color("#ff0000") translate([-eye_radius, -ipd/2, -clearance-wall_thickness*2]) rotate([0, 180, 0]) servo();
+        color("#ff000080") translate([-eye_radius, -ipd/2, -clearance-wall_thickness*2]) rotate([0, 180, 0]) servo();
     }
 }
 
@@ -312,14 +315,14 @@ module shell(radius, wall_thickness) {
         difference() {
             geodesic_sphere(radius-wall_thickness);
             translate([
-                0,
+                16,
                 -radius,
                 -radius
             ]) cube(radius*2);
             translate([
                 -radius,
                 -radius,
-                -radius*2-35 //mainboard offset
+                -radius*2-38 //mainboard offset
             ]) cube(radius*2);
         }
     }
@@ -339,7 +342,7 @@ module switch(clearance) {
 }
 
 pack_height = 24.4;
-pack_offset = -30;
+pack_offset = -36;
 breadboard_size = [56+clearance, 84+clearance, 17+clearance];
 printer_offset = [52, 0, -2.5];
 mainboard_offset = [-22, 0, pack_offset+pack_height/2];
@@ -356,18 +359,22 @@ ipd = eye_radius*2+clearance*2+18+3;//18 is for the M4x14 bolt length (include h
 thread_pocket_depth = 14;
 thread_pocket_diameter = 5.8;
 
-part = "top";
+part = "eyes";
 
 module assembly(clearance, cut_depth=0.0) {
-    color("#4080ff") translate(printer_offset) thermal_printer(clearance);
+    color("#4080ff80") translate(printer_offset) thermal_printer(clearance);
     rotate(electronics_rotation) {
-        color("#ff0000") translate(mainboard_offset) mainboard(breadboard_size, clearance, cut_depth);
-        color("#ffff00") translate(electronics_offset) battery_pack(clearance, cut_depth);
+        color("#ff000080") translate(mainboard_offset) mainboard(breadboard_size, clearance, cut_depth);
+        color("#ffff0080") translate(electronics_offset) battery_pack(clearance, cut_depth);
     }
 }
 
 if (part == "top") {
     socket_radius = 36/2+clearance;
+    servo_frame_size = [32+1.6,12+clearance+1.6*2,6];
+    servo_frame_offset = [-4.5, ipd/2+13.75, 30];
+    servo_body_size = [23+clearance, 12+clearance, 30+clearance];
+    servo_hole_offset = [(servo_body_size[0]-clearance)/2+2.65, 0, 0];
     difference() {
         union() {
             difference() {
@@ -412,15 +419,19 @@ if (part == "top") {
                     for (r=[0, 180]) {
                         rotate([0, 0, r]) translate([0, shell_radius-thread_pocket_diameter/2-wall_thickness*2, 0]) cylinder(h=shell_radius, d=thread_pocket_diameter+wall_thickness*4);
                     }
-                    // eye nut holder
-                    rotate([90, -eye_angle, 0]) translate([eye_distance, 0, 1.1]) difference() {
+                    // eye assembly mount
+                    rotate([90, -eye_angle, 0]) translate([eye_distance, 0, 1.1]) difference() { //solve this 1.1
                         hull() {
-                            cylinder(h=wall_thickness, r=4+(1.6+clearance)/2);
-                            translate([shell_radius, 0, 0]) cylinder(h=wall_thickness, r=4+(1.6+clearance)/2);
+                            slug_r = 4+(1.6+clearance)/2;
+                            cylinder(h=wall_thickness, r=slug_r);
+                            translate([shell_radius, 0, 0]) cylinder(h=wall_thickness, r=slug_r*2);
                         }
                         nut(4, wall_thickness, clearance);
                         metric_bolt("M4", 14, clearance);
                     }
+                    // servo mount
+                    translate(servo_frame_offset) rotate([90, 0, 0]) rounded_plate(servo_frame_size, 1.6*2+clearance);
+                    translate(servo_frame_offset+[0,-3.75,0]) rotate([-30, 0, 0]) translate([0,0,shell_radius/2]) cube([23,5,shell_radius],center=true);
                 }
             }
         }
@@ -428,13 +439,18 @@ if (part == "top") {
         for (r=[0, 180]) {
             rotate([0, 0, r]) translate([0, shell_radius-thread_pocket_diameter/2-wall_thickness*2, 0]) cylinder(h=thread_pocket_depth, d=thread_pocket_diameter);
         }
+        //servo frame holes
+        translate(servo_frame_offset) rotate([90, 0, 0]) cube(servo_body_size, center=true);
+        for (d=[servo_hole_offset, -servo_hole_offset]) translate(servo_frame_offset+d) rotate([90, 0, 0]) cylinder(h=10, r=1.05,center=true);
     }
     if ($preview) {
         $fn=$fn/4;
         // ud_servo
-        color("#ff0000") translate([-10, ipd/2, 30]) rotate([90, 0, 0]) servo();
+        color("#ff000080") translate([-10, ipd/2, 30]) rotate([90, 0, 0]) servo();
         //eyes
-        color("#ff0000") translate([eye_distance*cos(eye_angle), -ipd/2, eye_distance*sin(eye_angle)]) rotate([180, 0, 0]) eyes(ipd, clearance=clearance);
+        color("#ff000080") translate([eye_distance*cos(eye_angle), -ipd/2, eye_distance*sin(eye_angle)]) rotate([180, 0, 0]) eyes(ipd, clearance=clearance);
+        // eye attachment nut
+        color("#ff000080") rotate([90, -eye_angle, 0]) translate([eye_distance, 0, 0.9]) nut(4, 3, 0);
     }
 } else if (part == "bottom") {
     difference() {
@@ -444,7 +460,10 @@ if (part == "top") {
                 assembly(clearance=clearance, cut_depth=4);
                 translate([printer_offset[0]+5.3, -shell_radius, -shell_radius]) cube(shell_radius*2);
                 translate([-shell_radius, -shell_radius, 0]) cube(shell_radius*2);
-                //translate([-shell_radius, -shell_radius, -shell_radius*2]) cube(shell_radius*2);
+                intersection() {
+                    geodesic_sphere(shell_radius - wall_thickness);
+                for (y=[(87.4+wall_thickness*2+clearance)/2, -(87.4+wall_thickness*2+clearance)/2-shell_radius]) translate([0, y, -shell_radius+37]) cube(shell_radius);
+                }
             }
             intersection() {
                 geodesic_sphere(shell_radius);
@@ -459,7 +478,7 @@ if (part == "top") {
     }
 } else if (part == "guts") {
     intersection() {
-        geodesic_sphere(shell_radius);
+        geodesic_sphere(shell_radius-wall_thickness);
         assembly(clearance=clearance);
     }
 } else if (part == "eyes") {
