@@ -102,15 +102,22 @@ module battery_pack(clearance, cut_depth=0.0) {
         10.0+c,
         48.0+c
     ];
+    window_cutout_size = [16+c, 10+c, 60+c];
     power_channel_offset = [
         (pack_size[0] - power_channel_size[0]) / 2,
         -10.0-c,
         8.0
     ];
+    window_cutout_offset = [
+        (pack_size[0] - window_cutout_size[0]) / 2,
+        13.5-window_cutout_size[1]/2,
+        -window_cutout_size[2]
+    ];
     center_offset = [-pack_size[0]/2, -pack_size[1]/2, -(pack_size[2]-cut_depth)/2];
     translate(center_offset) union() {
         cube(pack_size);
         translate(power_channel_offset) cube(power_channel_size);
+        translate(window_cutout_offset) cube(window_cutout_size);
     }
     
 }
@@ -163,9 +170,9 @@ module lr_linkage(ipd, eye_radius, wall_thickness=1.6, clearance=0.0) {
     linkage_nut_h = 4; //two nuts
     points = [
         [0, 0, 0],
-        [ipd/4, 1.25*eye_radius, 0],
-        [ipd/2, 1.5*eye_radius+3.5, 0], //3.5 here is the same offset used in the ud_linkage for servo motor positioning.  we're putting the center of the servo at eye_radius from the linkage arm because it seems like a good idea to avoid stretching the push rod.
-        [3*ipd/4, 1.25*eye_radius, 0],
+        [ipd/4, eye_radius, 0],
+        [ipd/2, eye_radius, 0],
+        [3*ipd/4, eye_radius, 0],
         [ipd, 0, 0]
     ];
     slug_radii = [slug_r, slug_r/2, linkage_nut_r+wall_thickness/2+clearance/2, slug_r/2, slug_r];
@@ -182,7 +189,7 @@ module lr_linkage(ipd, eye_radius, wall_thickness=1.6, clearance=0.0) {
             }
         }
         translate(points[2]+[0, 0, slug_h/3]) nut(r=linkage_nut_r, h=linkage_nut_h-clearance,clearance=clearance/2);
-        translate(points[2]+[0, 0, -ipd/2]) metric_bolt("M1.6", ipd, clearance=clearance/2);
+        translate(points[2]+[0, 0, -ipd/2]) metric_bolt("M2", ipd, clearance=clearance/2);
     }
 }
 
@@ -191,7 +198,7 @@ module rounded_plate(size, r) {
 }
 
 module pill(r, p1, p2) {
-    hull() for (p=[p1,p2]) translate(p) geodesic_sphere(r);
+    hull() for (p=[p1, p2]) translate(p) geodesic_sphere(r);
 }
 
 module ud_linkage(eye_radius, ipd, wall_thickness=1.6, clearance=0.0) {
@@ -209,13 +216,13 @@ module ud_linkage(eye_radius, ipd, wall_thickness=1.6, clearance=0.0) {
     points = [
         [0, 0, z_offset],
         [-2*eye_radius/3, 0, z_offset],
-        [-0.75*eye_radius, 0, z_offset+segment_length],
-        [-1.5*eye_radius, -segment_length, z_offset+segment_length],
+        [-2*eye_radius/3, 0, z_offset+eye_radius/4],
+        [-1.5*eye_radius, -0.5*segment_length, z_offset+eye_radius/4],
         [-1.5*eye_radius, -2*segment_length, 0],
         [-1.5*eye_radius+3.5, -3*segment_length, 0], //center
         [-1.5*eye_radius, -4*segment_length, 0],
-        [-1.5*eye_radius, -5*segment_length, z_offset+segment_length],
-        [-0.75*eye_radius, -6*segment_length, z_offset+segment_length],
+        [-1.5*eye_radius, -5.5*segment_length, z_offset+eye_radius/4],
+        [-2*eye_radius/3, -6*segment_length, z_offset+eye_radius/4],
         [-2*eye_radius/3, -6*segment_length, z_offset],
         [0, -6*segment_length, z_offset]
     ];
@@ -274,8 +281,10 @@ module ud_linkage(eye_radius, ipd, wall_thickness=1.6, clearance=0.0) {
         translate(linkage_nut_offset) rotate([90, 0, 0]) nut(r=linkage_nut_r, h=linkage_nut_h-clearance, clearance=clearance);
         translate(linkage_nut_offset+[0,nut_h,0]) rotate([90, 0, 0]) metric_bolt("M1.6", 10, clearance=clearance);
     }
-    // lr_servo
-    //color("#ff0000") translate([-eye_radius, -ipd/2, -3-wall_thickness*2]) rotate([0, 180, 0]) servo();
+    if ($preview) {
+        // lr_servo
+        color("#ff0000") translate([-eye_radius, -ipd/2, -clearance-wall_thickness*2]) rotate([0, 180, 0]) servo();
+    }
 }
 
 module eyes(ipd, eye_radius=36/2, clearance) {
@@ -316,6 +325,19 @@ module shell(radius, wall_thickness) {
     }
 }
 
+module switch(clearance) {
+    inch = 25.4;
+    jumper_head_size = [inch/10, inch/10, 14] + [clearance, clearance, clearance];
+    switch_head_diameter = 6+clearance;
+    switch_head_height = 3.75+clearance;
+    switch_button_height = 1.75+clearance;
+    translate([0, 0, -switch_head_height]) union() {
+        cylinder(h=switch_head_height, d=switch_head_diameter);
+        for (y=[-switch_head_diameter/2, switch_head_diameter/2])
+            translate([0, y, -jumper_head_size[2]/2]) cube(jumper_head_size, center=true);
+    }
+}
+
 pack_height = 24.4;
 pack_offset = -30;
 breadboard_size = [56+clearance, 84+clearance, 17+clearance];
@@ -331,6 +353,9 @@ eye_radius = 36/2;
 eye_distance = shell_radius-wall_thickness*2-clearance-5.5; //2 for half bearing radius
 ipd = eye_radius*2+clearance*2+18+3;//18 is for the M4x14 bolt length (include head), 3 is for the final nut to make assembly possible
 
+thread_pocket_depth = 14;
+thread_pocket_diameter = 5.8;
+
 part = "top";
 
 module assembly(clearance, cut_depth=0.0) {
@@ -345,43 +370,92 @@ if (part == "top") {
     socket_radius = 36/2+clearance;
     difference() {
         union() {
-            shell(shell_radius, wall_thickness);
-            //eye bulbs
-            for (y=[-ipd/2, ipd/2]) {
-                eye_coords = [eye_distance*cos(eye_angle), y, eye_distance*sin(eye_angle)];
+            difference() {
+                union() {
+                    shell(shell_radius, wall_thickness);
+                    //eye bulbs
+                    for (y=[-ipd/2, ipd/2]) {
+                        eye_coords = [eye_distance*cos(eye_angle), y, eye_distance*sin(eye_angle)];
+                        difference() {
+                            pill(socket_radius+wall_thickness, eye_coords, [0, eye_coords[1], eye_coords[2]-(socket_radius+wall_thickness)/2]);
+                            translate(eye_coords+[socket_radius+wall_thickness+4.0,0,0]) cube((socket_radius+wall_thickness)*2, center=true);
+                        }
+                    }
+                }
+                //electronics cut
+                assembly(clearance=clearance, cut_depth=0.0);
+                //face cut
+                translate([printer_offset[0]+5.3, -shell_radius, -shell_radius]) cube(shell_radius*2);
+                //switch
+                translate([printer_offset[0]+5.3, 0, 30]) rotate([0, 90, 0]) switch(clearance);
+                //bottom cut
+                translate([-shell_radius, -shell_radius, -shell_radius*2]) cube(shell_radius*2);
+                //inner face cut
                 difference() {
-                    pill(socket_radius+wall_thickness, eye_coords, [0, eye_coords[1], eye_coords[2]-(socket_radius+wall_thickness)/2]);
-                    //translate(eye_coords) geodesic_sphere(socket_radius+wall_thickness);
-                    translate(eye_coords+[socket_radius+wall_thickness+4.0,0,0]) cube((socket_radius+wall_thickness)*2, center=true);
+                    geodesic_sphere(shell_radius-wall_thickness);
+                    //inner shell
+                    translate([printer_offset[0]-wall_thickness, -shell_radius, -shell_radius]) cube(shell_radius*2);
+                    //extra space for switch wires
+                    translate([printer_offset[0]+5.3, 0, 30]) rotate([0,-90,0]) cylinder(h=12,d=15);
+                }
+                // eye sockets
+                for (y=[-ipd/2, ipd/2]) {
+                    eye_coords = [eye_distance*cos(eye_angle), y, eye_distance*sin(eye_angle)];
+                    pill(socket_radius, eye_coords, [0, eye_coords[1], eye_coords[2]-socket_radius/2]);
+                }
+            }
+            // add inner bits
+            intersection() {
+                geodesic_sphere(shell_radius);
+                union() {
+                    // columns for thread pockets
+                    for (r=[0, 180]) {
+                        rotate([0, 0, r]) translate([0, shell_radius-thread_pocket_diameter/2-wall_thickness*2, 0]) cylinder(h=shell_radius, d=thread_pocket_diameter+wall_thickness*4);
+                    }
+                    // eye nut holder
+                    rotate([90, -eye_angle, 0]) translate([eye_distance, 0, 1.1]) difference() {
+                        hull() {
+                            cylinder(h=wall_thickness, r=4+(1.6+clearance)/2);
+                            translate([shell_radius, 0, 0]) cylinder(h=wall_thickness, r=4+(1.6+clearance)/2);
+                        }
+                        nut(4, wall_thickness, clearance);
+                        metric_bolt("M4", 14, clearance);
+                    }
                 }
             }
         }
-        assembly(clearance=clearance, cut_depth=0.0);
-        translate([printer_offset[0]+5.3, -shell_radius, -shell_radius]) cube(shell_radius*2);
-        //translate([-shell_radius, -shell_radius, 0]) cube(shell_radius*2);
-        translate([-shell_radius, -shell_radius, -shell_radius*2]) cube(shell_radius*2);
-        difference() {
-            geodesic_sphere(shell_radius-wall_thickness);
-            translate([printer_offset[0]-wall_thickness, -shell_radius, -shell_radius]) cube(shell_radius*2);
-        }
-        // eye sockets
-        for (y=[-ipd/2, ipd/2]) {
-            eye_coords = [eye_distance*cos(eye_angle), y, eye_distance*sin(eye_angle)];
-            pill(socket_radius, eye_coords, [0, eye_coords[1], eye_coords[2]-socket_radius/2]);
-            //translate([eye_distance*cos(eye_angle), y, eye_distance*sin(eye_angle)]) geodesic_sphere(socket_radius);
+        //thread pockets
+        for (r=[0, 180]) {
+            rotate([0, 0, r]) translate([0, shell_radius-thread_pocket_diameter/2-wall_thickness*2, 0]) cylinder(h=thread_pocket_depth, d=thread_pocket_diameter);
         }
     }
-    // ud_servo
-    color("#ff0000") translate([-10, ipd/2, 30]) rotate([90, 0, 0]) servo();
-    //eyes
-    color("#ff0000") translate([eye_distance*cos(eye_angle), -ipd/2, eye_distance*sin(eye_angle)]) rotate([180, 0, 0]) eyes(ipd, clearance=clearance);
+    if ($preview) {
+        $fn=$fn/4;
+        // ud_servo
+        color("#ff0000") translate([-10, ipd/2, 30]) rotate([90, 0, 0]) servo();
+        //eyes
+        color("#ff0000") translate([eye_distance*cos(eye_angle), -ipd/2, eye_distance*sin(eye_angle)]) rotate([180, 0, 0]) eyes(ipd, clearance=clearance);
+    }
 } else if (part == "bottom") {
     difference() {
-        shell(shell_radius, wall_thickness);
-        assembly(clearance=clearance, cut_depth=4);
-        translate([printer_offset[0]+5.3, -shell_radius, -shell_radius]) cube(shell_radius*2);
-        translate([-shell_radius, -shell_radius, 0]) cube(shell_radius*2);
-        //translate([-shell_radius, -shell_radius, -shell_radius*2]) cube(shell_radius*2);
+        union() {
+            difference() {
+                shell(shell_radius, wall_thickness);
+                assembly(clearance=clearance, cut_depth=4);
+                translate([printer_offset[0]+5.3, -shell_radius, -shell_radius]) cube(shell_radius*2);
+                translate([-shell_radius, -shell_radius, 0]) cube(shell_radius*2);
+                //translate([-shell_radius, -shell_radius, -shell_radius*2]) cube(shell_radius*2);
+            }
+            intersection() {
+                geodesic_sphere(shell_radius);
+                for (r=[0, 180]) {
+                    rotate([0, 0, r]) translate([0, shell_radius-thread_pocket_diameter/2-wall_thickness*2, -shell_radius]) cylinder(h=shell_radius, d=thread_pocket_diameter+wall_thickness*4);
+                }
+            }
+        }
+        for (r=[0, 180]) {
+            rotate([0, 0, r]) translate([0, shell_radius-thread_pocket_diameter/2-wall_thickness*2, -wall_thickness]) bolt(4, 14, 9, shell_radius, clearance);//M4x14, 9mm for washer, shell_radius for head height to create pocket
+        }
     }
 } else if (part == "guts") {
     intersection() {
