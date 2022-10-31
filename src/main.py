@@ -36,7 +36,7 @@ fuse.update(imu.accel.xyz, imu.gyro.xyz, imu.mag.xyz)
 
 # servo setup
 pitch_servo = Servo(18)
-roll_servo = Servo(19)
+heading_servo = Servo(19)
 min_ms = 20 # two 10ms cycles of the servo pwm clock, one cycle of the magnetometer's resolution
 
 # printer setup
@@ -114,10 +114,10 @@ def get_fortune(wlan):
         fortune = "No fortune today, internet's down."
     return fortune
 
-def modulo_angle(theta, mod_range=180):
+def modulo_angle(theta, mod_range=90):
     return (theta + mod_range / 2) % mod_range - mod_range / 2
 
-def cycling_angle(theta, cycle_range=180):
+def cycling_angle(theta, cycle_range=90):
     modded = modulo_angle(theta, cycle_range)
     modded *= (-1) ** ((abs(theta) // (cycle_range / 2)) % 2)
     return modded
@@ -133,15 +133,15 @@ def main_thread():
         gyro = imu.gyro.xyz
         mag = imu.mag.xyz
         fuse.update(accel, gyro, mag)
-        pitch_servo.update(cycling_angle(fuse.pitch))
-        roll_servo.update(cycling_angle(fuse.roll))
+        pitch_servo.update(-fuse.pitch-15.0, limit=90.0)
+        heading_servo.update(cycling_angle(fuse.heading), limit=45.0)
         if print_button.debounced():
             with print_lock:
                 print_start = True
         gc.collect()
         end_ticks = time.ticks_ms()
         dt = time.ticks_diff(end_ticks, start_ticks)
-        print(f"Temp: {temp} C, Heading: {fuse.heading}, Pitch: {pitch_servo.theta}, Roll: {roll_servo.theta}, Duration: {dt} ms, Print: {print_start}")
+        print(f"Temp: {temp} C, Heading: {heading_servo.theta}, Pitch: {pitch_servo.theta}, Roll: {fuse.roll}, Duration: {dt} ms, Print: {print_start}")
         time.sleep_ms(min_ms - dt)
 
 # put the main loop on the second thread because using wlan from the second thread seems to always report status "1"
@@ -155,4 +155,4 @@ while True:
         printer.println(get_fortune(wlan))
         printer.feed(4)
         print_command = False
-    time.sleep_ms(20)
+    time.sleep_ms(min_ms)

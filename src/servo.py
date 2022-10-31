@@ -37,27 +37,27 @@ class Servo:
         self.smoothing_factor = smoothing_factor
         self.theta = 0
 
-    def clamp_angle(self, theta):
-        if theta > 90.0:
-            theta = 90.0
-        elif theta < -90.0:
-            theta = -90.0
+    def clamp_angle(self, theta, limit=90.0):
+        if theta > limit:
+            theta = limit
+        elif theta < -limit:
+            theta = -limit
         return theta
 
-    def angle_to_servo(self, theta):
-        theta = self.clamp_angle(theta)
+    def angle_to_servo(self, theta, limit=90.0):
+        theta = self.clamp_angle(theta, limit)
         return int((theta+90)*self.duty_range/180)+self.duty_min
         
     def set_duty(self, duty):
         self.duty = int(duty)
         self.pwm.duty_ns(self.duty)
 
-    def update(self, theta=None):
+    def update(self, theta=None, limit=90.0):
         if (
             theta is not None and
             abs(self.theta-theta) >= self.update_threshold
         ):
-            theta = self.clamp_angle(theta)
+            theta = self.clamp_angle(theta, limit=90.0)
             theta = theta * self.smoothing_factor + self.theta * (1 - self.smoothing_factor)
             #self.pid.setpoint = self.angle_to_servo(theta)
         else:
