@@ -20,3 +20,8 @@ SRC
 ----
 
 The `src/` folder contains the micropython source files used in this project.  `vector3d.py`, `imu.py`, and `mpu9250.py` come from [micropython-IMU/micropython-mpu9x50](https://github.com/micropython-IMU/micropython-mpu9x50).  `deltat.py` and `fusion.py` are from the [micropython-IMU/micropython-fusion](https://github.com/micropython-IMU/micropython-fusion) project and help translate the sensor data to heading, pitch, and roll information.  The `thermal.py` file is renamed from `Adafruit_Thermal.py` found in their [Python-Thermal-Printer](https://github.com/adafruit/Python-Thermal-Printer) repository.  The `button.py` and `servo.py` libraries are my own and require some additional work.  Namely the button is only firing once per press (by design) but that should be a different function from debouncing.  The servo has some old PID related code that was not used in the final project and probably needs more cleanup as well.  Finally, `main.py` contains the main program.  The eye code needs considerable work here to match reality, but the basic functionality is in place.
+
+Picture
+----
+
+![image](https://user-images.githubusercontent.com/1106212/199348549-666e5ec5-8a13-414b-a9bf-a12cd8e44550.png)
